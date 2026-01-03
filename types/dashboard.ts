@@ -40,9 +40,9 @@ export interface RecentActivity {
   customerName: string;
   userName: string;
   actionType: string;
-  newStatus: string | null;
+  newStatus?: string;
   processed: boolean;
-  error: string | null;
+  error?: string;
 }
 
 export interface SyncInfo {
