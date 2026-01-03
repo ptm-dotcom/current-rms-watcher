@@ -405,25 +405,40 @@ class EventStorePostgres {
     }
 
     try {
+      // Calculate risk level from risk_score using the same logic as the risk assessment app
+      // Risk levels: LOW (≤2.0), MEDIUM (≤3.0), HIGH (≤4.0), CRITICAL (>4.0)
       const result = await sql`
         SELECT
-          (data->'custom_fields'->>'risk_level') as level,
+          CASE
+            WHEN COALESCE(CAST(data->'custom_fields'->>'risk_score' AS DECIMAL), 0) = 0 THEN NULL
+            WHEN CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) <= 2.0 THEN 'LOW'
+            WHEN CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) <= 3.0 THEN 'MEDIUM'
+            WHEN CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) <= 4.0 THEN 'HIGH'
+            ELSE 'CRITICAL'
+          END as level,
           COUNT(*)::int as count,
           COALESCE(SUM(CAST(charge_total AS DECIMAL)), 0) as total_value
         FROM opportunities
-        GROUP BY (data->'custom_fields'->>'risk_level')
+        GROUP BY
+          CASE
+            WHEN COALESCE(CAST(data->'custom_fields'->>'risk_score' AS DECIMAL), 0) = 0 THEN NULL
+            WHEN CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) <= 2.0 THEN 'LOW'
+            WHEN CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) <= 3.0 THEN 'MEDIUM'
+            WHEN CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) <= 4.0 THEN 'HIGH'
+            ELSE 'CRITICAL'
+          END
         ORDER BY
-          CASE (data->'custom_fields'->>'risk_level')
-            WHEN 'CRITICAL' THEN 1
-            WHEN 'HIGH' THEN 2
-            WHEN 'MEDIUM' THEN 3
-            WHEN 'LOW' THEN 4
-            ELSE 5
+          CASE
+            WHEN COALESCE(CAST(data->'custom_fields'->>'risk_score' AS DECIMAL), 0) = 0 THEN 5
+            WHEN CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) <= 2.0 THEN 4
+            WHEN CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) <= 3.0 THEN 3
+            WHEN CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) <= 4.0 THEN 2
+            ELSE 1
           END
       `;
 
       return result.rows.map(row => ({
-        level: row.level === '' ? null : row.level,
+        level: row.level,
         count: row.count,
         totalValue: parseFloat(row.total_value) || 0
       }));
@@ -444,27 +459,66 @@ class EventStorePostgres {
       let result;
 
       if (riskLevel === null) {
-        // Unscored opportunities
+        // Unscored opportunities (risk_score is 0 or NULL)
         result = await sql`
           SELECT
             id, name, subject, organisation_name, owner_name,
             starts_at, charge_total, data
           FROM opportunities
-          WHERE (data->'custom_fields'->>'risk_level') IS NULL
-            OR (data->'custom_fields'->>'risk_level') = ''
+          WHERE COALESCE(CAST(data->'custom_fields'->>'risk_score' AS DECIMAL), 0) = 0
           ORDER BY starts_at ASC
           LIMIT ${limit}
         `;
       } else {
-        result = await sql`
-          SELECT
-            id, name, subject, organisation_name, owner_name,
-            starts_at, charge_total, data
-          FROM opportunities
-          WHERE (data->'custom_fields'->>'risk_level') = ${riskLevel}
-          ORDER BY (data->'custom_fields'->>'risk_score')::decimal DESC, starts_at ASC
-          LIMIT ${limit}
-        `;
+        // Calculate risk level from risk_score and filter
+        // Risk levels: LOW (≤2.0), MEDIUM (≤3.0), HIGH (≤4.0), CRITICAL (>4.0)
+        if (riskLevel === 'LOW') {
+          result = await sql`
+            SELECT
+              id, name, subject, organisation_name, owner_name,
+              starts_at, charge_total, data
+            FROM opportunities
+            WHERE CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) > 0
+              AND CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) <= 2.0
+            ORDER BY CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) DESC, starts_at ASC
+            LIMIT ${limit}
+          `;
+        } else if (riskLevel === 'MEDIUM') {
+          result = await sql`
+            SELECT
+              id, name, subject, organisation_name, owner_name,
+              starts_at, charge_total, data
+            FROM opportunities
+            WHERE CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) > 2.0
+              AND CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) <= 3.0
+            ORDER BY CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) DESC, starts_at ASC
+            LIMIT ${limit}
+          `;
+        } else if (riskLevel === 'HIGH') {
+          result = await sql`
+            SELECT
+              id, name, subject, organisation_name, owner_name,
+              starts_at, charge_total, data
+            FROM opportunities
+            WHERE CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) > 3.0
+              AND CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) <= 4.0
+            ORDER BY CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) DESC, starts_at ASC
+            LIMIT ${limit}
+          `;
+        } else if (riskLevel === 'CRITICAL') {
+          result = await sql`
+            SELECT
+              id, name, subject, organisation_name, owner_name,
+              starts_at, charge_total, data
+            FROM opportunities
+            WHERE CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) > 4.0
+            ORDER BY CAST(data->'custom_fields'->>'risk_score' AS DECIMAL) DESC, starts_at ASC
+            LIMIT ${limit}
+          `;
+        } else {
+          // Invalid risk level
+          return [];
+        }
       }
 
       return result.rows;
