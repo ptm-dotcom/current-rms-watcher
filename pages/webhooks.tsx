@@ -5,8 +5,22 @@ import { WebhookTestResults } from '@/types/webhook';
 
 interface WebhookDiagnostics {
   timestamp: string;
-  environment: Record<string, unknown>;
-  webhookEndpoint: Record<string, unknown>;
+  environment: {
+    hasSubdomain: boolean;
+    subdomain: string;
+    hasApiKey: boolean;
+    apiKeyLength: number;
+    hasPostgres: boolean;
+    vercelUrl: string;
+    vercelProductionUrl: string;
+    nodeEnv: string;
+  };
+  webhookEndpoint: {
+    url: string;
+    host: string;
+    accessible: boolean;
+    expectedProductionUrl: string;
+  };
   currentRmsConnection: {
     status: string;
     totalWebhooks?: number;
