@@ -7,12 +7,12 @@ import { getRiskLevel, getRiskLevelColor, calculateRiskScore } from '@/lib/riskA
 interface Opportunity {
   id: number;
   name: string;
-  subject: string;
-  organisation_name: string;
-  owner_name: string;
-  starts_at: string;
-  charge_total: number;
-  data: any;
+  subject?: string;
+  organisation_name?: string;
+  owner_name?: string;
+  starts_at?: string;
+  charge_total?: string;
+  data?: any;
 }
 
 export default function RiskManagementPage() {
