@@ -145,6 +145,72 @@ class EventStorePostgres {
         ON external_integrations(system_name, sync_status)
       `;
 
+      // Create opportunities table for full Current RMS data
+      await sql`
+        CREATE TABLE IF NOT EXISTS opportunities (
+          id INTEGER PRIMARY KEY,
+          name TEXT NOT NULL,
+          subject TEXT,
+          description TEXT,
+          starts_at TIMESTAMP,
+          ends_at TIMESTAMP,
+          opportunity_status TEXT,
+          created_at_rms TIMESTAMP,
+          updated_at_rms TIMESTAMP,
+          venue_name TEXT,
+          organisation_id INTEGER,
+          organisation_name TEXT,
+          owner_id INTEGER,
+          owner_name TEXT,
+          charge_total DECIMAL(10,2),
+          total_value DECIMAL(10,2),
+          data JSONB,
+          synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          last_webhook_at TIMESTAMP
+        )
+      `;
+
+      // Create indexes for opportunity queries
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_opportunities_status
+        ON opportunities(opportunity_status)
+      `;
+
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_opportunities_dates
+        ON opportunities(starts_at, ends_at)
+      `;
+
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_opportunities_org
+        ON opportunities(organisation_id)
+      `;
+
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_opportunities_updated
+        ON opportunities(updated_at_rms DESC)
+      `;
+
+      // Create sync metadata table
+      await sql`
+        CREATE TABLE IF NOT EXISTS sync_metadata (
+          id SERIAL PRIMARY KEY,
+          sync_type TEXT NOT NULL,
+          status TEXT NOT NULL,
+          started_at TIMESTAMP NOT NULL,
+          completed_at TIMESTAMP,
+          records_synced INTEGER DEFAULT 0,
+          records_failed INTEGER DEFAULT 0,
+          error TEXT,
+          metadata JSONB
+        )
+      `;
+
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_sync_metadata_type
+        ON sync_metadata(sync_type, started_at DESC)
+      `;
+
       // Initialize start time if not exists
       const result = await sql`
         SELECT value FROM webhook_metadata WHERE key = 'start_time'
@@ -746,16 +812,16 @@ class EventStorePostgres {
       ] = await Promise.all([
         this.getMetrics(),
         this.getActionTypeDistribution(),
-        this.getStatusDistribution(),
+        this.getOpportunityStatusDistribution(), // Use synced opportunities instead of augmented
         this.getEventsTimeline(7),
         this.getTopOpportunitiesByActivity(10),
         this.getRecentActivity(20)
       ]);
 
-      // Calculate total unique opportunities
+      // Calculate total opportunities from opportunities table (includes synced data)
       const oppResult = await sql`
-        SELECT COUNT(DISTINCT opportunity_id) as count
-        FROM webhook_events
+        SELECT COUNT(*) as count
+        FROM opportunities
       `;
       const totalOpportunities = parseInt(oppResult.rows[0].count);
 
@@ -793,6 +859,66 @@ class EventStorePostgres {
         topOpportunities: [],
         recentActivity: []
       };
+    }
+  }
+
+  // Get opportunity status distribution from synced opportunities
+  async getOpportunityStatusDistribution(): Promise<{ status: string; count: number }[]> {
+    await this.initialize();
+
+    if (!process.env.POSTGRES_URL) {
+      return [];
+    }
+
+    try {
+      const result = await sql`
+        SELECT opportunity_status as status, COUNT(*) as count
+        FROM opportunities
+        WHERE opportunity_status IS NOT NULL
+        GROUP BY opportunity_status
+        ORDER BY count DESC
+      `;
+
+      return result.rows.map(row => ({
+        status: row.status,
+        count: parseInt(row.count)
+      }));
+    } catch (error) {
+      console.error('[EventStore] Error fetching opportunity status distribution:', error);
+      return [];
+    }
+  }
+
+  // Get opportunities by date range for timeline
+  async getOpportunitiesByDateRange(days: number = 30): Promise<any[]> {
+    await this.initialize();
+
+    if (!process.env.POSTGRES_URL) {
+      return [];
+    }
+
+    try {
+      const result = await sql`
+        SELECT
+          id,
+          name,
+          organisation_name,
+          opportunity_status,
+          starts_at,
+          ends_at,
+          charge_total,
+          synced_at
+        FROM opportunities
+        WHERE starts_at >= CURRENT_DATE - INTERVAL '${days} days'
+          OR ends_at >= CURRENT_DATE - INTERVAL '${days} days'
+        ORDER BY starts_at DESC
+        LIMIT 100
+      `;
+
+      return result.rows;
+    } catch (error) {
+      console.error('[EventStore] Error fetching opportunities by date range:', error);
+      return [];
     }
   }
 }

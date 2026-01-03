@@ -11,9 +11,9 @@ export function StatusDistributionChart({ data }: StatusDistributionChartProps) 
   if (!data || data.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold mb-4">Workflow Status Distribution</h3>
+        <h3 className="text-lg font-semibold mb-4">Opportunity Status Distribution</h3>
         <div className="h-64 flex items-center justify-center text-gray-400">
-          No augmented data available yet
+          No opportunities synced yet. Run Initial Sync to load data.
         </div>
       </div>
     );
@@ -21,7 +21,7 @@ export function StatusDistributionChart({ data }: StatusDistributionChartProps) 
 
   return (
     <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-      <h3 className="text-lg font-semibold mb-4">Workflow Status Distribution</h3>
+      <h3 className="text-lg font-semibold mb-4">Opportunity Status Distribution</h3>
       <ResponsiveContainer width="100%" height={300}>
         <PieChart>
           <Pie

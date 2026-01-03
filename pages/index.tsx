@@ -6,6 +6,7 @@ import { TimelineChart } from '@/components/Dashboard/TimelineChart';
 import { StatusDistributionChart } from '@/components/Dashboard/StatusDistributionChart';
 import { TopOpportunitiesTable } from '@/components/Dashboard/TopOpportunitiesTable';
 import { ActivityFeed } from '@/components/Dashboard/ActivityFeed';
+import { SyncControl } from '@/components/Dashboard/SyncControl';
 
 export default function Dashboard() {
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -228,9 +229,10 @@ export default function Dashboard() {
           </div>
 
           {/* Charts Row 2 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             <StatusDistributionChart data={dashboardData?.statusDistribution || []} />
             <ActivityFeed data={dashboardData?.recentActivity || []} />
+            <SyncControl />
           </div>
 
           {/* Top Opportunities Table */}

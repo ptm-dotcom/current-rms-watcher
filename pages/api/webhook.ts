@@ -5,6 +5,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { WebhookPayload, ProcessedEvent } from '@/types';
 import { eventStore } from '@/lib/eventStorePostgres';
 import { rulesEngine } from '@/lib/businessRules';
+import { opportunitySync } from '@/lib/opportunitySync';
 
 export default async function handler(
   req: NextApiRequest,
@@ -63,6 +64,11 @@ export default async function handler(
 
     // Store the event with raw payload (after processing so we have the final state)
     await eventStore.addEvent(processedEvent, payload);
+
+    // Sync the opportunity in the background (don't wait for it)
+    opportunitySync.syncOpportunity(processedEvent.opportunityId).catch(error => {
+      console.error(`⚠️ Background sync failed for opportunity ${processedEvent.opportunityId}:`, error);
+    });
 
     // Return 200 OK quickly (webhook best practice)
     return res.status(200).json({
