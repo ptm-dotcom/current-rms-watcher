@@ -17,8 +17,19 @@ export function RiskStatusSummary({ data, onCategoryClick }: RiskStatusSummaryPr
   const totalValue = data.reduce((sum, item) => sum + item.totalValue, 0);
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-      <h3 className="text-lg font-semibold mb-4">Risk Assessment Status</h3>
+    <div className="bg-white rounded-lg shadow p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold">Risk Assessment Status</h3>
+        <a
+          href="/risk-management"
+          className="text-sm text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1"
+        >
+          View All
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+      </div>
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 gap-4 mb-6">
