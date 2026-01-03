@@ -424,129 +424,126 @@ class EventStorePostgres {
 
       let result;
 
-      // Build query based on date filtering parameters
+      // Use CTE to calculate risk_level first, then group by it
+      // This avoids the "column must appear in GROUP BY" error
       if (startDate && endDate) {
         result = await sql`
+          WITH opp_with_level AS (
+            SELECT
+              charge_total,
+              CASE
+                WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN NULL
+                WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 'LOW'
+                WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 'MEDIUM'
+                WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 'HIGH'
+                ELSE 'CRITICAL'
+              END as risk_level
+            FROM opportunities
+            WHERE starts_at >= ${startDate}::date AND starts_at <= ${endDate}::date
+          )
           SELECT
-            CASE
-              WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN NULL
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 'LOW'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 'MEDIUM'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 'HIGH'
-              ELSE 'CRITICAL'
-            END as level,
+            risk_level as level,
             COUNT(*)::int as count,
             COALESCE(SUM(CAST(charge_total AS DECIMAL)), 0) as total_value
-          FROM opportunities
-          WHERE starts_at >= ${startDate}::date AND starts_at <= ${endDate}::date
-          GROUP BY
-            CASE
-              WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN NULL
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 'LOW'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 'MEDIUM'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 'HIGH'
-              ELSE 'CRITICAL'
-            END
+          FROM opp_with_level
+          GROUP BY risk_level
           ORDER BY
-            CASE
-              WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN 5
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 4
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 3
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 2
-              ELSE 1
+            CASE risk_level
+              WHEN 'CRITICAL' THEN 1
+              WHEN 'HIGH' THEN 2
+              WHEN 'MEDIUM' THEN 3
+              WHEN 'LOW' THEN 4
+              ELSE 5
             END
         `;
       } else if (startDate) {
         result = await sql`
+          WITH opp_with_level AS (
+            SELECT
+              charge_total,
+              CASE
+                WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN NULL
+                WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 'LOW'
+                WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 'MEDIUM'
+                WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 'HIGH'
+                ELSE 'CRITICAL'
+              END as risk_level
+            FROM opportunities
+            WHERE starts_at >= ${startDate}::date
+          )
           SELECT
-            CASE
-              WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN NULL
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 'LOW'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 'MEDIUM'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 'HIGH'
-              ELSE 'CRITICAL'
-            END as level,
+            risk_level as level,
             COUNT(*)::int as count,
             COALESCE(SUM(CAST(charge_total AS DECIMAL)), 0) as total_value
-          FROM opportunities
-          WHERE starts_at >= ${startDate}::date
-          GROUP BY
-            CASE
-              WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN NULL
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 'LOW'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 'MEDIUM'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 'HIGH'
-              ELSE 'CRITICAL'
-            END
+          FROM opp_with_level
+          GROUP BY risk_level
           ORDER BY
-            CASE
-              WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN 5
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 4
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 3
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 2
-              ELSE 1
+            CASE risk_level
+              WHEN 'CRITICAL' THEN 1
+              WHEN 'HIGH' THEN 2
+              WHEN 'MEDIUM' THEN 3
+              WHEN 'LOW' THEN 4
+              ELSE 5
             END
         `;
       } else if (endDate) {
         result = await sql`
+          WITH opp_with_level AS (
+            SELECT
+              charge_total,
+              CASE
+                WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN NULL
+                WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 'LOW'
+                WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 'MEDIUM'
+                WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 'HIGH'
+                ELSE 'CRITICAL'
+              END as risk_level
+            FROM opportunities
+            WHERE starts_at <= ${endDate}::date
+          )
           SELECT
-            CASE
-              WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN NULL
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 'LOW'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 'MEDIUM'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 'HIGH'
-              ELSE 'CRITICAL'
-            END as level,
+            risk_level as level,
             COUNT(*)::int as count,
             COALESCE(SUM(CAST(charge_total AS DECIMAL)), 0) as total_value
-          FROM opportunities
-          WHERE starts_at <= ${endDate}::date
-          GROUP BY
-            CASE
-              WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN NULL
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 'LOW'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 'MEDIUM'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 'HIGH'
-              ELSE 'CRITICAL'
-            END
+          FROM opp_with_level
+          GROUP BY risk_level
           ORDER BY
-            CASE
-              WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN 5
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 4
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 3
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 2
-              ELSE 1
+            CASE risk_level
+              WHEN 'CRITICAL' THEN 1
+              WHEN 'HIGH' THEN 2
+              WHEN 'MEDIUM' THEN 3
+              WHEN 'LOW' THEN 4
+              ELSE 5
             END
         `;
       } else {
         // No date filtering
         result = await sql`
+          WITH opp_with_level AS (
+            SELECT
+              charge_total,
+              CASE
+                WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN NULL
+                WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 'LOW'
+                WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 'MEDIUM'
+                WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 'HIGH'
+                ELSE 'CRITICAL'
+              END as risk_level
+            FROM opportunities
+          )
           SELECT
-            CASE
-              WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN NULL
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 'LOW'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 'MEDIUM'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 'HIGH'
-              ELSE 'CRITICAL'
-            END as level,
+            risk_level as level,
             COUNT(*)::int as count,
             COALESCE(SUM(CAST(charge_total AS DECIMAL)), 0) as total_value
-          FROM opportunities
-          GROUP BY
-            CASE
-              WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN NULL
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 'LOW'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 'MEDIUM'
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 'HIGH'
-              ELSE 'CRITICAL'
-            END
+          FROM opp_with_level
+          GROUP BY risk_level
           ORDER BY
-            CASE
-              WHEN COALESCE(CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL), 0) = 0 THEN 5
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 2.0 THEN 4
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 3.0 THEN 3
-              WHEN CAST(NULLIF(data->'custom_fields'->>'risk_score', '') AS DECIMAL) <= 4.0 THEN 2
-              ELSE 1
+            CASE risk_level
+              WHEN 'CRITICAL' THEN 1
+              WHEN 'HIGH' THEN 2
+              WHEN 'MEDIUM' THEN 3
+              WHEN 'LOW' THEN 4
+              ELSE 5
             END
         `;
       }
