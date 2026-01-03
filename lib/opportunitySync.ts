@@ -282,6 +282,16 @@ export class OpportunitySync {
    * Upsert a single opportunity into the database
    */
   private async upsertOpportunity(opp: any): Promise<void> {
+    // Current RMS uses 'subject' as the name field
+    // Map Current RMS fields to our schema
+    const name = opp.subject || opp.number || `Opportunity ${opp.id}`;
+    const status = opp.status_name || opp.state_name || null;
+    const venueName = opp.venue?.name || opp.venue_name || null;
+    const organisationId = opp.member_id || opp.organisation_id || null;
+    const organisationName = opp.member?.name || opp.organisation_name || null;
+    const ownerId = opp.owned_by || opp.owner_id || null;
+    const ownerName = opp.owner?.name || opp.owner_name || null;
+
     await sql`
       INSERT INTO opportunities (
         id, name, subject, description,
@@ -293,21 +303,21 @@ export class OpportunitySync {
         data, synced_at
       ) VALUES (
         ${opp.id},
-        ${opp.name},
+        ${name},
         ${opp.subject || null},
         ${opp.description || null},
         ${opp.starts_at || null},
         ${opp.ends_at || null},
-        ${opp.opportunity_status || null},
+        ${status},
         ${opp.created_at || null},
         ${opp.updated_at || null},
-        ${opp.venue_name || null},
-        ${opp.organisation_id || null},
-        ${opp.organisation_name || null},
-        ${opp.owner_id || null},
-        ${opp.owner_name || null},
+        ${venueName},
+        ${organisationId},
+        ${organisationName},
+        ${ownerId},
+        ${ownerName},
         ${opp.charge_total || null},
-        ${opp.total_value || null},
+        ${opp.charge_including_tax_total || opp.total_value || null},
         ${JSON.stringify(opp)},
         CURRENT_TIMESTAMP
       )
