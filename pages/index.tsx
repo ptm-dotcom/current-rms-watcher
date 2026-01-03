@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
 import { ActionTypeChart } from '@/components/Dashboard/ActionTypeChart';
 import { TimelineChart } from '@/components/Dashboard/TimelineChart';
@@ -7,9 +8,13 @@ import { StatusDistributionChart } from '@/components/Dashboard/StatusDistributi
 import { TopOpportunitiesTable } from '@/components/Dashboard/TopOpportunitiesTable';
 import { ActivityFeed } from '@/components/Dashboard/ActivityFeed';
 import { SyncControl } from '@/components/Dashboard/SyncControl';
+import { RiskStatusSummary } from '@/components/Dashboard/RiskStatusSummary';
+import { RiskLevel } from '@/lib/riskAssessment';
 
 export default function Dashboard() {
+  const router = useRouter();
   const [dashboardData, setDashboardData] = useState<any>(null);
+  const [riskSummaryData, setRiskSummaryData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [showDebug, setShowDebug] = useState(false);
@@ -18,12 +23,22 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const response = await fetch('/api/dashboard');
-      const data = await response.json();
+      const [dashboardResponse, riskResponse] = await Promise.all([
+        fetch('/api/dashboard'),
+        fetch('/api/risk/summary')
+      ]);
 
-      if (data.success) {
-        setDashboardData(data.data);
+      const dashboardData = await dashboardResponse.json();
+      const riskData = await riskResponse.json();
+
+      if (dashboardData.success) {
+        setDashboardData(dashboardData.data);
       }
+
+      if (riskData.success) {
+        setRiskSummaryData(riskData.data);
+      }
+
       setLoading(false);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -229,9 +244,15 @@ export default function Dashboard() {
           </div>
 
           {/* Charts Row 2 */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
             <StatusDistributionChart data={dashboardData?.statusDistribution || []} />
             <ActivityFeed data={dashboardData?.recentActivity || []} />
+            <RiskStatusSummary
+              data={riskSummaryData}
+              onCategoryClick={(level: RiskLevel) => {
+                router.push(`/risk/${level === null ? 'null' : level}`);
+              }}
+            />
             <SyncControl />
           </div>
 

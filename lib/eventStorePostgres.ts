@@ -397,6 +397,83 @@ class EventStorePostgres {
     }
   }
 
+  async getRiskSummary(): Promise<Array<{ level: string | null; count: number; totalValue: number }>> {
+    await this.initialize();
+
+    if (!process.env.POSTGRES_URL) {
+      return [];
+    }
+
+    try {
+      const result = await sql`
+        SELECT
+          (data->'custom_fields'->>'risk_level') as level,
+          COUNT(*)::int as count,
+          COALESCE(SUM(CAST(charge_total AS DECIMAL)), 0) as total_value
+        FROM opportunities
+        GROUP BY (data->'custom_fields'->>'risk_level')
+        ORDER BY
+          CASE (data->'custom_fields'->>'risk_level')
+            WHEN 'CRITICAL' THEN 1
+            WHEN 'HIGH' THEN 2
+            WHEN 'MEDIUM' THEN 3
+            WHEN 'LOW' THEN 4
+            ELSE 5
+          END
+      `;
+
+      return result.rows.map(row => ({
+        level: row.level === '' ? null : row.level,
+        count: row.count,
+        totalValue: parseFloat(row.total_value) || 0
+      }));
+    } catch (error) {
+      console.error('[EventStore] Error fetching risk summary:', error);
+      return [];
+    }
+  }
+
+  async getOpportunitiesByRiskLevel(riskLevel: string | null, limit: number = 100): Promise<any[]> {
+    await this.initialize();
+
+    if (!process.env.POSTGRES_URL) {
+      return [];
+    }
+
+    try {
+      let result;
+
+      if (riskLevel === null) {
+        // Unscored opportunities
+        result = await sql`
+          SELECT
+            id, name, subject, organisation_name, owner_name,
+            starts_at, charge_total, data
+          FROM opportunities
+          WHERE (data->'custom_fields'->>'risk_level') IS NULL
+            OR (data->'custom_fields'->>'risk_level') = ''
+          ORDER BY starts_at ASC
+          LIMIT ${limit}
+        `;
+      } else {
+        result = await sql`
+          SELECT
+            id, name, subject, organisation_name, owner_name,
+            starts_at, charge_total, data
+          FROM opportunities
+          WHERE (data->'custom_fields'->>'risk_level') = ${riskLevel}
+          ORDER BY (data->'custom_fields'->>'risk_score')::decimal DESC, starts_at ASC
+          LIMIT ${limit}
+        `;
+      }
+
+      return result.rows;
+    } catch (error) {
+      console.error('[EventStore] Error fetching opportunities by risk level:', error);
+      return [];
+    }
+  }
+
   async getEventsByOpportunity(opportunityId: number): Promise<ProcessedEvent[]> {
     await this.initialize();
 
