@@ -51,9 +51,24 @@ export class OpportunitySync {
         try {
           await this.upsertOpportunity(opp);
           recordsSynced++;
+          if (recordsSynced === 1) {
+            // Log first successful opportunity structure for debugging
+            console.log(`[OpportunitySync] First opportunity structure:`, JSON.stringify(opp, null, 2));
+          }
         } catch (error) {
           console.error(`[OpportunitySync] Failed to sync opportunity ${opp.id}:`, error);
+          console.error(`[OpportunitySync] Opportunity data:`, JSON.stringify(opp, null, 2));
           recordsFailed++;
+
+          // Log first failure in detail
+          if (recordsFailed === 1) {
+            console.error(`[OpportunitySync] First failure details:`, {
+              error: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : undefined,
+              opportunityId: opp.id,
+              opportunityKeys: Object.keys(opp)
+            });
+          }
         }
       }
 
@@ -174,9 +189,24 @@ export class OpportunitySync {
         try {
           await this.upsertOpportunity(opp);
           recordsSynced++;
+          if (recordsSynced === 1) {
+            // Log first successful opportunity structure for debugging
+            console.log(`[OpportunitySync] First opportunity structure:`, JSON.stringify(opp, null, 2));
+          }
         } catch (error) {
           console.error(`[OpportunitySync] Failed to sync opportunity ${opp.id}:`, error);
+          console.error(`[OpportunitySync] Opportunity data:`, JSON.stringify(opp, null, 2));
           recordsFailed++;
+
+          // Log first failure in detail
+          if (recordsFailed === 1) {
+            console.error(`[OpportunitySync] First failure details:`, {
+              error: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : undefined,
+              opportunityId: opp.id,
+              opportunityKeys: Object.keys(opp)
+            });
+          }
         }
       }
 
