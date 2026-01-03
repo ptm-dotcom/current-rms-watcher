@@ -12,6 +12,14 @@ class EventStorePostgres {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    // Check if database is configured
+    if (!process.env.POSTGRES_URL) {
+      console.warn('[EventStore] Postgres not configured - database features disabled');
+      console.warn('[EventStore] Please create a Postgres database in Vercel dashboard');
+      this.initialized = true;
+      return;
+    }
+
     try {
       // Create events table if it doesn't exist
       await sql`
@@ -73,6 +81,11 @@ class EventStorePostgres {
   async addEvent(event: ProcessedEvent): Promise<void> {
     await this.initialize();
 
+    if (!process.env.POSTGRES_URL) {
+      console.warn('[EventStore] Skipping event save - database not configured');
+      return;
+    }
+
     try {
       await sql`
         INSERT INTO webhook_events (
@@ -103,6 +116,10 @@ class EventStorePostgres {
 
   async getRecentEvents(limit: number = 50): Promise<ProcessedEvent[]> {
     await this.initialize();
+
+    if (!process.env.POSTGRES_URL) {
+      return [];
+    }
 
     try {
       const result = await sql`
@@ -137,6 +154,10 @@ class EventStorePostgres {
 
   async getEventById(id: string): Promise<ProcessedEvent | undefined> {
     await this.initialize();
+
+    if (!process.env.POSTGRES_URL) {
+      return undefined;
+    }
 
     try {
       const result = await sql`
@@ -174,7 +195,17 @@ class EventStorePostgres {
   async getMetrics(): Promise<HealthMetrics> {
     await this.initialize();
 
-    try {
+    if (!process.env.POSTGRES_URL) {
+      return {
+        totalEvents: 0,
+        successfulEvents: 0,
+        failedEvents: 0,
+        lastEventTime: undefined,
+        uptime: Math.floor((Date.now() - this.startTime) / 1000)
+      };
+    }
+
+    try{
       const [totalResult, successResult, failedResult, lastEventResult] = await Promise.all([
         sql`SELECT COUNT(*) as count FROM webhook_events`,
         sql`SELECT COUNT(*) as count FROM webhook_events WHERE processed = true AND error IS NULL`,
@@ -212,6 +243,10 @@ class EventStorePostgres {
   async getEventsByOpportunity(opportunityId: number): Promise<ProcessedEvent[]> {
     await this.initialize();
 
+    if (!process.env.POSTGRES_URL) {
+      return [];
+    }
+
     try {
       const result = await sql`
         SELECT
@@ -245,6 +280,11 @@ class EventStorePostgres {
 
   async clearEvents(): Promise<void> {
     await this.initialize();
+
+    if (!process.env.POSTGRES_URL) {
+      console.warn('[EventStore] Skipping clear - database not configured');
+      return;
+    }
 
     try {
       await sql`DELETE FROM webhook_events`;
