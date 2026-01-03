@@ -22,8 +22,7 @@ export default function WebhookTestPage() {
     } catch (error) {
       setResults({
         success: false,
-        message: 'Error running test',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: error instanceof Error ? error.message : 'Error running test'
       });
     }
 
