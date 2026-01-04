@@ -220,6 +220,47 @@ export default async function handler(
       }
     }
 
+    // Migration 6b: Backfill cost columns from JSONB data
+    // This ensures new columns are populated from existing data without requiring a full resync
+    try {
+      const backfillResult = await sql`
+        UPDATE opportunities
+        SET
+          provisional_cost_total = COALESCE(
+            provisional_cost_total,
+            CAST(data->>'provisional_cost_total' AS DECIMAL(12,2))
+          ),
+          predicted_cost_total = COALESCE(
+            predicted_cost_total,
+            CAST(data->>'predicted_cost_total' AS DECIMAL(12,2))
+          ),
+          actual_cost_total = COALESCE(
+            actual_cost_total,
+            CAST(data->>'actual_cost_total' AS DECIMAL(12,2))
+          )
+        WHERE data IS NOT NULL
+          AND (
+            provisional_cost_total IS NULL
+            OR predicted_cost_total IS NULL
+            OR actual_cost_total IS NULL
+          )
+      `;
+
+      migrations.push({
+        name: 'Backfill cost columns from JSONB',
+        status: 'success',
+        message: `Backfilled ${backfillResult.rowCount || 0} records from stored JSONB data`
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      // Don't fail the migration if backfill fails - it's not critical
+      migrations.push({
+        name: 'Backfill cost columns from JSONB',
+        status: 'warning',
+        message: `Backfill skipped: ${errorMsg}`
+      });
+    }
+
     // Migration 7: Create forecast_metadata table
     try {
       await sql`
