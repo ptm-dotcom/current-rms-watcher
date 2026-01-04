@@ -32,8 +32,8 @@ export default function RiskManagementPage() {
     if (router.isReady) {
       const { filter } = router.query;
       if (filter && typeof filter === 'string') {
-        // Valid filter values: ALL, CRITICAL, HIGH, MEDIUM, LOW, UNSCORED
-        const validFilters = ['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNSCORED'];
+        // Valid filter values: ALL, CRITICAL, HIGH, MEDIUM, LOW, UNSCORED, NEEDS_REVIEW
+        const validFilters = ['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNSCORED', 'NEEDS_REVIEW'];
         if (validFilters.includes(filter.toUpperCase())) {
           setFilterLevel(filter.toUpperCase());
         }
@@ -66,6 +66,32 @@ export default function RiskManagementPage() {
       return parseFloat(rawScore) || 0;
     }
     return 0;
+  };
+
+  // Helper to check if opportunity has been updated since last risk review
+  const needsRiskReview = (opp: Opportunity): boolean => {
+    const updatedAtRaw = opp.updated_at || (opp.data?.updated_at as string | undefined);
+    const riskLastUpdatedRaw = opp.data?.custom_fields?.risk_last_updated;
+
+    // If no risk assessment has been done yet or no update timestamp, we can't compare
+    if (!riskLastUpdatedRaw || !updatedAtRaw) {
+      return false;
+    }
+
+    // Convert to strings for Date parsing
+    const updatedAtStr = typeof updatedAtRaw === 'string' ? updatedAtRaw : String(updatedAtRaw);
+    const riskLastUpdatedStr = typeof riskLastUpdatedRaw === 'string' ? riskLastUpdatedRaw : String(riskLastUpdatedRaw);
+
+    const updatedDate = new Date(updatedAtStr);
+    const riskDate = new Date(riskLastUpdatedStr);
+
+    // Check if dates are valid
+    if (isNaN(updatedDate.getTime()) || isNaN(riskDate.getTime())) {
+      return false;
+    }
+
+    // Return true if opportunity was updated AFTER the last risk assessment
+    return updatedDate > riskDate;
   };
 
   useEffect(() => {
@@ -107,9 +133,14 @@ export default function RiskManagementPage() {
       });
     }
 
-    // Filter by risk level
+    // Filter by risk level or special filters
     if (filterLevel !== 'ALL') {
       filtered = filtered.filter(opp => {
+        // Special filter: opportunities updated since last risk review
+        if (filterLevel === 'NEEDS_REVIEW') {
+          return needsRiskReview(opp);
+        }
+
         const riskScore = parseRiskScore(opp.data?.custom_fields?.risk_score);
         const level = getRiskLevel(riskScore);
 
@@ -167,6 +198,7 @@ export default function RiskManagementPage() {
       medium: 0,
       low: 0,
       unscored: 0,
+      needsReview: 0,
       totalValue: 0
     };
 
@@ -182,6 +214,11 @@ export default function RiskManagementPage() {
       else if (level === 'HIGH') stats.high++;
       else if (level === 'MEDIUM') stats.medium++;
       else if (level === 'LOW') stats.low++;
+
+      // Count opportunities that have been updated since last risk review
+      if (needsRiskReview(opp)) {
+        stats.needsReview++;
+      }
     });
 
     return stats;
@@ -238,7 +275,7 @@ export default function RiskManagementPage() {
         {/* Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Stats Overview */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-7 gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4 border-l-4 border-gray-400">
               <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
               <div className="text-sm text-gray-500">Total</div>
@@ -263,6 +300,13 @@ export default function RiskManagementPage() {
               <div className="text-2xl font-bold text-gray-600">{stats.unscored}</div>
               <div className="text-sm text-gray-500">Unscored</div>
             </div>
+            <button
+              onClick={() => setFilterLevel('NEEDS_REVIEW')}
+              className={`bg-white rounded-lg shadow p-4 border-l-4 border-purple-500 text-left hover:bg-purple-50 transition-colors ${filterLevel === 'NEEDS_REVIEW' ? 'ring-2 ring-purple-500' : ''}`}
+            >
+              <div className="text-2xl font-bold text-purple-600">{stats.needsReview}</div>
+              <div className="text-sm text-gray-500">Needs Review</div>
+            </button>
           </div>
 
           {/* Date Range Filter */}
@@ -288,6 +332,7 @@ export default function RiskManagementPage() {
                   <option value="MEDIUM">Medium</option>
                   <option value="LOW">Low</option>
                   <option value="UNSCORED">Unscored</option>
+                  <option value="NEEDS_REVIEW">Updated Since Review</option>
                 </select>
               </div>
               <div>

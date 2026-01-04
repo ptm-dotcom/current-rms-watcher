@@ -15,6 +15,7 @@ export interface Opportunity {
   owner_name?: string;
   starts_at?: string;
   ends_at?: string;
+  updated_at?: string;
   charge_total?: string;
   opportunity_status?: string;
   data?: OpportunityData;
