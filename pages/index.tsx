@@ -9,14 +9,18 @@ import { TopOpportunitiesTable } from '@/components/Dashboard/TopOpportunitiesTa
 import { ActivityFeed } from '@/components/Dashboard/ActivityFeed';
 import { SyncControl } from '@/components/Dashboard/SyncControl';
 import { RiskStatusSummary } from '@/components/Dashboard/RiskStatusSummary';
+import { ForecastSummaryWidget } from '@/components/Dashboard/ForecastSummaryWidget';
 import { RiskLevel } from '@/lib/riskAssessment';
 import { DashboardData, RiskSummaryItem, DebugDiagnostics } from '@/types/dashboard';
+import { ForecastSummary } from '@/types/forecast';
 import { DateRangeFilter, DateRange } from '@/components/DateRangeFilter';
 
 export default function Dashboard() {
   const router = useRouter();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [riskSummaryData, setRiskSummaryData] = useState<RiskSummaryItem[]>([]);
+  const [forecastSummary, setForecastSummary] = useState<ForecastSummary | null>(null);
+  const [forecastLoading, setForecastLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [showDebug, setShowDebug] = useState(false);
@@ -35,13 +39,15 @@ export default function Dashboard() {
       if (dateRange.endDate) params.append('endDate', dateRange.endDate);
       const queryString = params.toString();
 
-      const [dashboardResponse, riskResponse] = await Promise.all([
+      const [dashboardResponse, riskResponse, forecastResponse] = await Promise.all([
         fetch(`/api/dashboard${queryString ? `?${queryString}` : ''}`),
-        fetch(`/api/risk/summary${queryString ? `?${queryString}` : ''}`)
+        fetch(`/api/risk/summary${queryString ? `?${queryString}` : ''}`),
+        fetch(`/api/forecast/summary${queryString ? `?${queryString}` : ''}`)
       ]);
 
       const dashboardData = await dashboardResponse.json();
       const riskData = await riskResponse.json();
+      const forecastData = await forecastResponse.json();
 
       if (dashboardData.success) {
         setDashboardData(dashboardData.data);
@@ -51,10 +57,16 @@ export default function Dashboard() {
         setRiskSummaryData(riskData.data);
       }
 
+      if (forecastData.success) {
+        setForecastSummary(forecastData.data.summary);
+      }
+      setForecastLoading(false);
+
       setLoading(false);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setLoading(false);
+      setForecastLoading(false);
     }
   };
 
@@ -292,9 +304,15 @@ export default function Dashboard() {
           </div>
 
           {/* Charts Row 2 */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             <StatusDistributionChart data={dashboardData?.statusDistribution || []} />
             <ActivityFeed data={dashboardData?.recentActivity || []} />
+            <SyncControl />
+          </div>
+
+          {/* Business Intelligence Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <ForecastSummaryWidget data={forecastSummary} loading={forecastLoading} />
             <RiskStatusSummary
               data={riskSummaryData}
               onCategoryClick={(level: RiskLevel) => {
@@ -302,7 +320,6 @@ export default function Dashboard() {
                 router.push(`/risk-management?filter=${filterValue}`);
               }}
             />
-            <SyncControl />
           </div>
 
           {/* Top Opportunities Table */}
