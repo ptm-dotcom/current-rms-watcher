@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 
@@ -12,6 +13,46 @@ interface SettingCategory {
 
 export default function Settings() {
   const router = useRouter();
+  const [migrating, setMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<{
+    success: boolean;
+    message: string;
+    details?: string[];
+  } | null>(null);
+
+  const runMigration = async () => {
+    setMigrating(true);
+    setMigrationResult(null);
+
+    try {
+      const response = await fetch('/api/migrate-database', {
+        method: 'POST'
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        setMigrationResult({
+          success: true,
+          message: result.message || 'Migration completed successfully',
+          details: result.migrations?.map((m: any) => `${m.name}: ${m.status}`) || []
+        });
+      } else {
+        setMigrationResult({
+          success: false,
+          message: result.error || 'Migration failed',
+          details: result.message ? [result.message] : []
+        });
+      }
+    } catch (error) {
+      setMigrationResult({
+        success: false,
+        message: 'Failed to run migration',
+        details: [error instanceof Error ? error.message : 'Unknown error']
+      });
+    } finally {
+      setMigrating(false);
+    }
+  };
 
   const categories: SettingCategory[] = [
     {
@@ -126,8 +167,74 @@ export default function Settings() {
             ))}
           </div>
 
-          {/* Quick Links */}
+          {/* Database Management */}
           <div className="mt-12 bg-white rounded-lg shadow p-6">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="p-3 rounded-lg bg-gradient-to-br from-gray-600 to-gray-800 text-white flex-shrink-0">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Database Management</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">
+                  Run database migrations to create or update tables, add new columns, and apply schema changes.
+                  This is safe to run multiple times - it will only apply pending migrations.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button
+                onClick={runMigration}
+                disabled={migrating}
+                className="px-6 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {migrating ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Running Migrations...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Run Database Migrations
+                  </>
+                )}
+              </button>
+            </div>
+
+            {migrationResult && (
+              <div className={`mt-4 p-4 rounded-lg ${
+                migrationResult.success
+                  ? 'bg-green-50 border border-green-200'
+                  : 'bg-red-50 border border-red-200'
+              }`}>
+                <div className={`font-medium ${
+                  migrationResult.success ? 'text-green-800' : 'text-red-800'
+                }`}>
+                  {migrationResult.success ? '✓ ' : '✗ '}{migrationResult.message}
+                </div>
+                {migrationResult.details && migrationResult.details.length > 0 && (
+                  <ul className={`mt-2 text-sm space-y-1 ${
+                    migrationResult.success ? 'text-green-700' : 'text-red-700'
+                  }`}>
+                    {migrationResult.details.map((detail, index) => (
+                      <li key={index}>• {detail}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Links */}
+          <div className="mt-8 bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Links</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <a
