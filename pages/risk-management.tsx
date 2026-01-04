@@ -20,10 +20,29 @@ export default function RiskManagementPage() {
     startDate: null,
     endDate: null
   });
+  const [currentRmsSubdomain, setCurrentRmsSubdomain] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOpportunities();
+    fetchSubdomain();
   }, []);
+
+  const fetchSubdomain = async () => {
+    try {
+      const response = await fetch('/api/debug');
+      const data = await response.json();
+      if (data.success && data.diagnostics?.environment?.subdomain) {
+        setCurrentRmsSubdomain(data.diagnostics.environment.subdomain);
+      }
+    } catch (error) {
+      console.error('Error fetching subdomain:', error);
+    }
+  };
+
+  const getOpportunityUrl = (opportunityId: number) => {
+    if (!currentRmsSubdomain) return null;
+    return `https://${currentRmsSubdomain}.current-rms.com/opportunities/${opportunityId}`;
+  };
 
   useEffect(() => {
     filterOpportunities();
@@ -271,6 +290,9 @@ export default function RiskManagementPage() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Opportunity
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -296,7 +318,7 @@ export default function RiskManagementPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredOpportunities.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                         No opportunities found
                       </td>
                     </tr>
@@ -306,11 +328,37 @@ export default function RiskManagementPage() {
                       const riskScore = typeof rawScore === 'number' ? rawScore : 0;
                       const riskLevel = getRiskLevel(riskScore);
                       const colors = getRiskLevelColor(riskLevel);
+                      const opportunityUrl = getOpportunityUrl(opp.id);
 
                       return (
                         <tr key={opp.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {opportunityUrl ? (
+                              <a
+                                href={opportunityUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                {opp.id}
+                              </a>
+                            ) : (
+                              opp.id
+                            )}
+                          </td>
                           <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                            {opp.subject || opp.name || `Opportunity #${opp.id}`}
+                            {opportunityUrl ? (
+                              <a
+                                href={opportunityUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                {opp.subject || opp.name || `Opportunity #${opp.id}`}
+                              </a>
+                            ) : (
+                              opp.subject || opp.name || `Opportunity #${opp.id}`
+                            )}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
                             {opp.organisation_name || 'N/A'}

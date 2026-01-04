@@ -17,6 +17,7 @@ export default function handler(
       environment: {
         nodeEnv: process.env.NODE_ENV,
         hasSubdomain: !!process.env.CURRENT_RMS_SUBDOMAIN,
+        subdomain: process.env.CURRENT_RMS_SUBDOMAIN || null,
         hasApiKey: !!process.env.CURRENT_RMS_API_KEY,
         hasWebhookSecret: !!process.env.WEBHOOK_SECRET,
       },
