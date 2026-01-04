@@ -184,6 +184,86 @@ export default async function handler(
       });
     }
 
+    // Migration 6: Add cost columns to opportunities table
+    try {
+      await sql`
+        ALTER TABLE opportunities
+        ADD COLUMN IF NOT EXISTS provisional_cost_total DECIMAL(12,2)
+      `;
+      await sql`
+        ALTER TABLE opportunities
+        ADD COLUMN IF NOT EXISTS predicted_cost_total DECIMAL(12,2)
+      `;
+      await sql`
+        ALTER TABLE opportunities
+        ADD COLUMN IF NOT EXISTS actual_cost_total DECIMAL(12,2)
+      `;
+
+      migrations.push({
+        name: 'Add cost columns to opportunities',
+        status: 'success',
+        message: 'Cost columns added or already exist'
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      if (!errorMsg.includes('does not exist')) {
+        errors.push({
+          name: 'Add cost columns to opportunities',
+          error: errorMsg
+        });
+      } else {
+        migrations.push({
+          name: 'Add cost columns to opportunities',
+          status: 'skipped',
+          message: 'Table does not exist yet'
+        });
+      }
+    }
+
+    // Migration 7: Create forecast_metadata table
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS forecast_metadata (
+          id SERIAL PRIMARY KEY,
+          opportunity_id INTEGER NOT NULL UNIQUE,
+          probability INTEGER DEFAULT 0 CHECK (probability >= 0 AND probability <= 100),
+          is_commit BOOLEAN DEFAULT false,
+          revenue_override DECIMAL(12,2),
+          profit_override DECIMAL(12,2),
+          is_excluded BOOLEAN DEFAULT false,
+          exclusion_reason TEXT,
+          notes TEXT,
+          last_reviewed_at TIMESTAMP,
+          reviewed_by TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+
+      // Create index on opportunity_id for fast lookups
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_forecast_metadata_opportunity_id
+        ON forecast_metadata(opportunity_id)
+      `;
+
+      // Create index for filtering by commit/excluded status
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_forecast_metadata_status
+        ON forecast_metadata(is_commit, is_excluded)
+      `;
+
+      migrations.push({
+        name: 'Create forecast_metadata table',
+        status: 'success',
+        message: 'Table and indexes created or already exist'
+      });
+    } catch (error) {
+      errors.push({
+        name: 'Create forecast_metadata table',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+
     const success = errors.length === 0;
 
     return res.status(success ? 200 : 500).json({

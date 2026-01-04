@@ -292,6 +292,12 @@ export class OpportunitySync {
     const ownerId = opp.owned_by || opp.owner_id || null;
     const ownerName = opp.owner?.name || opp.owner_name || null;
 
+    // Cost fields from CurrentRMS for profit calculations
+    // provisional_cost_total is used as the basis for profit = charge_total - provisional_cost_total
+    const provisionalCostTotal = opp.provisional_cost_total || null;
+    const predictedCostTotal = opp.predicted_cost_total || null;
+    const actualCostTotal = opp.actual_cost_total || null;
+
     await sql`
       INSERT INTO opportunities (
         id, name, subject, description,
@@ -300,6 +306,7 @@ export class OpportunitySync {
         venue_name, organisation_id, organisation_name,
         owner_id, owner_name,
         charge_total, total_value,
+        provisional_cost_total, predicted_cost_total, actual_cost_total,
         data, synced_at
       ) VALUES (
         ${opp.id},
@@ -318,6 +325,9 @@ export class OpportunitySync {
         ${ownerName},
         ${opp.charge_total || null},
         ${opp.charge_including_tax_total || opp.total_value || null},
+        ${provisionalCostTotal},
+        ${predictedCostTotal},
+        ${actualCostTotal},
         ${JSON.stringify(opp)},
         CURRENT_TIMESTAMP
       )
@@ -337,6 +347,9 @@ export class OpportunitySync {
         owner_name = EXCLUDED.owner_name,
         charge_total = EXCLUDED.charge_total,
         total_value = EXCLUDED.total_value,
+        provisional_cost_total = EXCLUDED.provisional_cost_total,
+        predicted_cost_total = EXCLUDED.predicted_cost_total,
+        actual_cost_total = EXCLUDED.actual_cost_total,
         data = EXCLUDED.data,
         synced_at = CURRENT_TIMESTAMP
     `;
