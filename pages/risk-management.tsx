@@ -75,11 +75,15 @@ export default function RiskManagementPage() {
 
   // Helper to check if opportunity has been updated since last risk review
   const needsRiskReview = (opp: Opportunity): boolean => {
-    const updatedAtRaw = opp.updated_at || (opp.data?.updated_at as string | undefined);
+    const updatedAtRaw = opp.updated_at;
     const riskLastUpdatedRaw = opp.data?.custom_fields?.risk_last_updated;
+
+    // Debug logging
+    console.log(`[needsRiskReview] Opp ${opp.id}: updated_at=${updatedAtRaw}, risk_last_updated=${riskLastUpdatedRaw}`);
 
     // If no risk assessment has been done yet or no update timestamp, we can't compare
     if (!riskLastUpdatedRaw || !updatedAtRaw) {
+      console.log(`[needsRiskReview] Opp ${opp.id}: Missing data - returning false`);
       return false;
     }
 
@@ -92,11 +96,15 @@ export default function RiskManagementPage() {
 
     // Check if dates are valid
     if (isNaN(updatedDate.getTime()) || isNaN(riskDate.getTime())) {
+      console.log(`[needsRiskReview] Opp ${opp.id}: Invalid dates - returning false`);
       return false;
     }
 
+    const result = updatedDate > riskDate;
+    console.log(`[needsRiskReview] Opp ${opp.id}: ${updatedDate.toISOString()} > ${riskDate.toISOString()} = ${result}`);
+
     // Return true if opportunity was updated AFTER the last risk assessment
-    return updatedDate > riskDate;
+    return result;
   };
 
   useEffect(() => {
