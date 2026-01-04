@@ -242,17 +242,18 @@ export class CurrentRMSClient {
   }
 }
 
-// Helper to create default date range (-30 days to +1 year)
+// Helper to create default date range for initial sync
+// Pulls ALL records: 10 years historical + 2 years future
 export function getDefaultDateRange(): { startDate: string; endDate: string } {
   const now = new Date();
 
-  // 30 days ago
+  // 10 years ago (captures all historical opportunities)
   const startDate = new Date(now);
-  startDate.setDate(startDate.getDate() - 30);
+  startDate.setFullYear(startDate.getFullYear() - 10);
 
-  // 1 year in the future
+  // 2 years in the future
   const endDate = new Date(now);
-  endDate.setFullYear(endDate.getFullYear() + 1);
+  endDate.setFullYear(endDate.getFullYear() + 2);
 
   return {
     startDate: startDate.toISOString(),
