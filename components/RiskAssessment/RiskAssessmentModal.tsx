@@ -25,30 +25,68 @@ export function RiskAssessmentModal({ opportunity, isOpen, onClose, onSave }: Ri
   const [mitigationPlan, setMitigationPlan] = useState<number>(0);
   const [mitigationNotes, setMitigationNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  // Helper to parse score values that may be number or string
+  const parseScoreValue = (value: unknown): number | undefined => {
+    if (typeof value === 'number' && value >= 1 && value <= 5) {
+      return value;
+    }
+    if (typeof value === 'string' && value !== '') {
+      const parsed = parseInt(value, 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 5) {
+        return parsed;
+      }
+    }
+    return undefined;
+  };
+
+  // Helper to parse mitigation plan value
+  const parseMitigationPlan = (value: unknown): number => {
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (typeof value === 'string' && value !== '') {
+      const parsed = parseInt(value, 10);
+      if (!isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return 0;
+  };
 
   // Load existing risk data when opportunity changes
   useEffect(() => {
     if (opportunity?.data?.custom_fields) {
       const cf = opportunity.data.custom_fields;
       setScores({
-        risk_project_novelty: cf.risk_project_novelty,
-        risk_technical_complexity: cf.risk_technical_complexity,
-        risk_resource_utilization: cf.risk_resource_utilization,
-        risk_client_sophistication: cf.risk_client_sophistication,
-        risk_budget_size: cf.risk_budget_size,
-        risk_timeframe_constraint: cf.risk_timeframe_constraint,
-        risk_team_experience: cf.risk_team_experience,
-        risk_subhire_availability: cf.risk_subhire_availability
+        risk_project_novelty: parseScoreValue(cf.risk_project_novelty),
+        risk_technical_complexity: parseScoreValue(cf.risk_technical_complexity),
+        risk_resource_utilization: parseScoreValue(cf.risk_resource_utilization),
+        risk_client_sophistication: parseScoreValue(cf.risk_client_sophistication),
+        risk_budget_size: parseScoreValue(cf.risk_budget_size),
+        risk_timeframe_constraint: parseScoreValue(cf.risk_timeframe_constraint),
+        risk_team_experience: parseScoreValue(cf.risk_team_experience),
+        risk_subhire_availability: parseScoreValue(cf.risk_subhire_availability)
       });
-      setRiskReviewed(cf.risk_reviewed === 'Yes' || cf.risk_reviewed === '1');
-      setMitigationPlan(cf.risk_mitigation_plan || 0);
-      setMitigationNotes(cf.risk_mitigation_notes || '');
+      // Handle various truthy values for risk_reviewed (stored as string in custom_fields)
+      const reviewed = cf.risk_reviewed;
+      setRiskReviewed(
+        reviewed === 'Yes' ||
+        reviewed === 'yes' ||
+        reviewed === '1' ||
+        reviewed === 'true'
+      );
+      setMitigationPlan(parseMitigationPlan(cf.risk_mitigation_plan));
+      setMitigationNotes(cf.risk_mitigation_notes?.toString() || '');
+      setLastUpdated(cf.risk_last_updated?.toString() || null);
     } else {
       // Reset to defaults
       setScores({});
       setRiskReviewed(false);
       setMitigationPlan(0);
       setMitigationNotes('');
+      setLastUpdated(null);
     }
   }, [opportunity]);
 
@@ -120,6 +158,11 @@ export function RiskAssessmentModal({ opportunity, isOpen, onClose, onSave }: Ri
               <div className={`text-3xl font-bold ${colors.text}`}>
                 {calculatedScore > 0 ? calculatedScore.toFixed(2) : 'Not Assessed'}
               </div>
+              {lastUpdated && (
+                <div className="text-xs text-gray-500 mt-1">
+                  Last updated: {new Date(lastUpdated).toLocaleString()}
+                </div>
+              )}
             </div>
             <div className="text-right">
               <div className={`text-xl font-bold ${colors.text}`}>
